@@ -1,6 +1,6 @@
 {
   "name": "encode-object",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "main": "lib/encode-object.js",
   "repository": {
     "type": "git",
