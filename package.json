@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "babel src -d lib",
+    "watch": "babel src -d lib -w",
     "lint": "eslint src",
     "test": "babel test.js | node | faucet"
   },
