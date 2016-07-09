@@ -39,13 +39,23 @@ export default function createEncoder(config, encode = toBase62, decode = fromBa
     throw new Error('config required');
   }
 
-  const keys = Object.keys(config);
-  keys.sort(alphabetize);
+  const configKeys = Object.keys(config);
+  configKeys.sort(alphabetize);
 
   const configVersion = hashObject(config).slice(0, VERSION_LENGTH);
 
   function validateObject(obj) {
-    keys.forEach((key) => {
+    const objKeys = Object.keys(obj);
+    const missingConfigKeys = objKeys.filter(key => !configKeys.includes(key));
+    const missingObjKeys = configKeys.filter(key => !objKeys.includes(key));
+    if (missingConfigKeys.length) {
+      throw new Error(`config is missing fields: ${missingConfigKeys.join(', ')}`);
+    }
+    if (missingObjKeys.length) {
+      throw new Error(`object is missing config fields: ${missingObjKeys.join(', ')}`);
+    }
+
+    configKeys.forEach((key) => {
       const [type, maxLen] = config[key];
       const val = obj[key];
       // for now, make sure everything's a number
@@ -64,13 +74,13 @@ export default function createEncoder(config, encode = toBase62, decode = fromBa
   function validateHash(hash) {
     const version = hash.slice(0, VERSION_LENGTH);
     if (version !== configVersion) {
-      throw new Error('hash was encrypted with different config version');
+      throw new Error('hash was encoded with different config version');
     }
   }
 
   function encodeObject(obj) {
     validateObject(obj);
-    const bits = keys.map((key) => {
+    const bits = configKeys.map((key) => {
       const [type, maxLen] = config[key];
       const maxEncodedLen = getMaxEncodedLen(type, maxLen, encode);
       let val = obj[key];
@@ -86,7 +96,7 @@ export default function createEncoder(config, encode = toBase62, decode = fromBa
     const obj = {};
     validateHash(hash);
     hash = hash.slice(VERSION_LENGTH);
-    keys.forEach((key) => {
+    configKeys.forEach((key) => {
       const [type, maxLen] = config[key];
       const maxEncodedLen = getMaxEncodedLen(type, maxLen, encode);
       const bit = hash.slice(0, maxEncodedLen);
