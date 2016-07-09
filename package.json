@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "bases": "^0.2.1",
+    "left-pad": "^1.1.1",
     "object-hash": "^1.1.2"
   }
 }

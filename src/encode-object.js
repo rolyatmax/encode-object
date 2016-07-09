@@ -1,43 +1,27 @@
 import hashObject from 'object-hash';
+import leftPad from 'left-pad';
 import { toBase62, fromBase62, toAlphabet, fromAlphabet } from 'bases';
 
 
 const ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
 const VERSION_LENGTH = 3;
 
-function leftPad(str, len, char = ' ') {
-  str = `${str}`;
-  len = len - str.length;
-  if (len <= 0) return str;
-  return char.repeat(len) + str;
-}
+const alphabetize = (a, b) => (a < b ? -1 : 1);
+const floatToInt = (val, decimals) => (val * Math.pow(10, decimals)) | 0;
+const intToFloat = (val, decimals) => val / Math.pow(10, decimals);
 
 function getMaxEncodedLen(type, len, encode) {
   if (type === 'string') {
     const lastLetter = ALPHABET[ALPHABET.length - 1];
     const maxBase10Val = fromAlphabet(lastLetter.repeat(len), ALPHABET);
-    len = maxBase10Val.length;
+    len = (`${maxBase10Val}`).length;
   }
   const max = Math.pow(10, len) - 1;
   return encode(max).length;
 }
 
-function alphabetize(a, b) {
-  return a < b ? -1 : 1;
-}
-
-function floatToInt(val, decimals) {
-  return (val * Math.pow(10, decimals)) | 0;
-}
-
-function intToFloat(val, decimals) {
-  return val / Math.pow(10, decimals);
-}
-
 export default function createEncoder(config, encode = toBase62, decode = fromBase62) {
-  if (!config) {
-    throw new Error('config required');
-  }
+  if (!config) throw new Error('config required');
 
   const configKeys = Object.keys(config);
   configKeys.sort(alphabetize);
@@ -58,9 +42,13 @@ export default function createEncoder(config, encode = toBase62, decode = fromBa
     configKeys.forEach((key) => {
       const [type, maxLen] = config[key];
       const val = obj[key];
-      // for now, make sure everything's a number
-      if (!Number.isFinite(val)) throw new Error('all object values must be numbers');
-      if (Number.isFinite(val) && val < 0) throw new Error('all numbers must be positive');
+
+      if (!Number.isFinite(val) && typeof(val) !== 'string') {
+        throw new Error('all object values must be numbers or strings');
+      }
+      if (Number.isFinite(val) && val < 0) {
+        throw new Error('all numbers must be positive');
+      }
 
       if (type === 'float') {
         if (val >= 1) throw new Error('floats must be less than 1.0');
