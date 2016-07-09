@@ -1,0 +1,31 @@
+{
+  "name": "encode-object",
+  "version": "0.0.1",
+  "main": "lib/encode-object.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rolyatmax/encode-object.git"
+  },
+  "scripts": {
+    "build": "babel src -d lib",
+    "lint": "eslint src",
+    "test": "babel test.js | node | faucet"
+  },
+  "author": "Taylor Baldwin <taylorbaldwin@gmail.com> (https://tbaldw.in)",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-cli": "^6.10.1",
+    "babel-eslint": "^6.1.1",
+    "babel-plugin-transform-object-rest-spread": "^6.8.0",
+    "babel-preset-es2015": "^6.9.0",
+    "eslint": "^3.0.1",
+    "eslint-config-airbnb-base": "^4.0.0",
+    "eslint-plugin-import": "^1.10.2",
+    "faucet": "0.0.1",
+    "tape": "^4.6.0"
+  },
+  "dependencies": {
+    "bases": "^0.2.1",
+    "object-hash": "^1.1.2"
+  }
+}
