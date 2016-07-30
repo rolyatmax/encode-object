@@ -1,30 +1,43 @@
 import hashObject from 'object-hash';
 import leftPad from 'left-pad';
-import { toBase62, fromBase62, toAlphabet, fromAlphabet } from 'bases';
+import { toBase62, fromBase62, toBase2, fromBase2 } from 'bases';
 
 
-const ALPHABET = 'abcdefghijklmnopqrstuvwxyz';
-const VERSION_LENGTH = 3;
-
+const VERSION_LENGTH = 2;
 const alphabetize = (a, b) => (a < b ? -1 : 1);
-const floatToInt = (val, decimals) => (val * Math.pow(10, decimals)) | 0;
-const intToFloat = (val, decimals) => val / Math.pow(10, decimals);
 
-function getMaxEncodedLen(type, len, encode) {
-  if (type === 'string') {
-    const lastLetter = ALPHABET[ALPHABET.length - 1];
-    const maxBase10Val = fromAlphabet(lastLetter.repeat(len), ALPHABET);
-    len = (`${maxBase10Val}`).length;
-  }
-  const max = Math.pow(10, len) - 1;
-  return encode(max).length;
+function validateConfig(config) {
+  Object.keys(config).forEach((key) => {
+    const [min, max, step] = config[key];
+    if (min > max) throw new RangeError(`min is greater than max for field: "${key}"`);
+    if ((max - min) % step !== 0) {
+      throw new RangeError(
+        `the range between min and max must be divisible by step ${step} for field: ${key}`
+      );
+    }
+  });
 }
 
-export default function createEncoder(config, encode = toBase62, decode = fromBase62) {
+export default function createEncoder(config) {
   if (!config) throw new Error('config required');
 
   const configKeys = Object.keys(config);
   configKeys.sort(alphabetize);
+
+  let totalBitsNeeded = 0;
+
+  // fill in defaults
+  config = { ...config };
+  configKeys.forEach((key) => {
+    const [min, max, step = 1] = config[key];
+    if (step === 0) throw new RangeError(`step cannot be 0 for field: ${key}`);
+    const steps = ((max - min) / step) + 1; // plus one because range is inclusive
+    const bitsNeeded = Math.ceil(Math.log2(steps));
+    totalBitsNeeded += bitsNeeded;
+    config[key] = [min, max, step, bitsNeeded];
+  });
+
+  validateConfig(config);
 
   const configVersion = hashObject(config).slice(0, VERSION_LENGTH);
 
@@ -40,21 +53,25 @@ export default function createEncoder(config, encode = toBase62, decode = fromBa
     }
 
     configKeys.forEach((key) => {
-      const [type, maxLen] = config[key];
+      const [min, max, step] = config[key];
       const val = obj[key];
 
-      if (!Number.isFinite(val) && typeof(val) !== 'string') {
-        throw new Error('all object values must be numbers or strings');
-      }
-      if (Number.isFinite(val) && val < 0) {
-        throw new Error('all numbers must be positive');
+      if (!Number.isFinite(val)) {
+        throw new TypeError('all object values must be numbers');
       }
 
-      if (type === 'float') {
-        if (val >= 1) throw new Error('floats must be less than 1.0');
-      } else {
-        const valLen = (`${val}`).length;
-        if (valLen > maxLen) throw new Error(`value exceeds max length for field: ${key}`);
+      if (val > max) {
+        throw new RangeError(`value ${val} is greater than ${max} for field "${key}"`);
+      }
+
+      if (val < min) {
+        throw new RangeError(`value ${val} is less than ${min} for field "${key}"`);
+      }
+
+      if ((val - min) % step !== 0) {
+        throw new RangeError(
+          `value ${val} cannot be reached from minimum ${min} by step ${step} for field "${key}"`
+        );
       }
     });
   }
@@ -69,30 +86,27 @@ export default function createEncoder(config, encode = toBase62, decode = fromBa
   function encodeObject(obj) {
     validateObject(obj);
     const bits = configKeys.map((key) => {
-      const [type, maxLen] = config[key];
-      const maxEncodedLen = getMaxEncodedLen(type, maxLen, encode);
-      let val = obj[key];
-      if (type === 'float') val = floatToInt(val, maxLen);
-      if (type === 'string') val = fromAlphabet(val, ALPHABET);
-      return leftPad(encode(val), maxEncodedLen, '0');
-    });
-    bits.unshift(configVersion);
-    return bits.join('');
+      const [min, , step, bitsNeeded] = config[key];
+      const val = obj[key];
+      // NOTE: rounding here because of floating point errors?
+      const valInBase2 = toBase2(Math.round((val - min) / step));
+      return leftPad(valInBase2, bitsNeeded, '0');
+    }).join('');
+    return configVersion + toBase62(fromBase2(bits));
   }
 
   function decodeObject(hash) {
     const obj = {};
     validateHash(hash);
     hash = hash.slice(VERSION_LENGTH);
+    let bits = toBase2(fromBase62(hash));
+    bits = leftPad(bits, totalBitsNeeded, '0');
     configKeys.forEach((key) => {
-      const [type, maxLen] = config[key];
-      const maxEncodedLen = getMaxEncodedLen(type, maxLen, encode);
-      const bit = hash.slice(0, maxEncodedLen);
-      let val = decode(bit);
-      if (type === 'float') val = intToFloat(val, maxLen);
-      if (type === 'string') val = toAlphabet(val, ALPHABET);
-      obj[key] = val;
-      hash = hash.slice(maxEncodedLen);
+      const [min, , step, bitsNeeded] = config[key];
+      const bit = bits.slice(0, bitsNeeded);
+      const val = fromBase2(bit);
+      obj[key] = (val * step) + min;
+      bits = bits.slice(bitsNeeded);
     });
     return obj;
   }
