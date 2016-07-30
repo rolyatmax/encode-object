@@ -7,6 +7,8 @@ Right now, only works with ints.
 
 ## Usage
 
+`createEncoder` takes a config which maps each key it should find in an object to a `[max, min, step]`. `step` is optional and defaults to `1`.
+
 ```js
 const config = {
   foo: [0, 5],
