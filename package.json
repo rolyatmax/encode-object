@@ -1,5 +1,6 @@
 {
   "name": "encode-object",
+  "description": "Encode/decode JS objects - useful for maintaining state in a URL hash",
   "version": "0.1.1",
   "main": "lib/encode-object.js",
   "repository": {
@@ -7,11 +8,22 @@
     "url": "git+https://github.com/rolyatmax/encode-object.git"
   },
   "scripts": {
+    "clean": "rimraf lib",
+    "check:src": "npm run lint && npm run test",
     "build": "babel src -d lib",
-    "watch": "babel src -d lib -w",
-    "lint": "eslint src",
-    "test": "babel test.js | node | faucet"
+    "watch": "npm run build -- -w",
+    "test": "babel test.js | node | faucet",
+    "lint": "eslint .",
+    "prepublish": "npm run clean && npm run build && npm run check:src"
   },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "bugs": {
+    "url": "https://github.com/rolyatmax/encode-object/issues"
+  },
+  "homepage": "https://github.com/rolyatmax/encode-object",
   "author": "Taylor Baldwin <taylorbaldwin@gmail.com> (https://tbaldw.in)",
   "license": "MIT",
   "devDependencies": {
@@ -23,6 +35,7 @@
     "eslint-config-airbnb-base": "^4.0.0",
     "eslint-plugin-import": "^1.10.2",
     "faucet": "0.0.1",
+    "rimraf": "^2.5.4",
     "tape": "^4.6.0"
   },
   "dependencies": {
