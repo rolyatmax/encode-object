@@ -2,8 +2,12 @@ import hashObject from 'object-hash'
 import leftPad from 'left-pad'
 import { toBase62, fromBase62, toBase2, fromBase2 } from 'bases'
 
+const ALGO_VERSION = 2
 const VERSION_LENGTH = 2
 const alphabetize = (a, b) => (a < b ? -1 : 1)
+
+const base2ChunkSize = Math.log2(Number.MAX_SAFE_INTEGER)
+const base62ChunkSize = Math.ceil(Math.log(Number.MAX_SAFE_INTEGER) / Math.log(62))
 
 function validateConfig (config) {
   Object.keys(config).forEach((key) => {
@@ -31,14 +35,20 @@ export default function createEncoder (config) {
     const [min, max, step = 1] = config[key]
     if (step === 0) throw new RangeError(`step cannot be 0 for field: ${key}`)
     const steps = ((max - min) / step) + 1 // plus one because range is inclusive
-    const bitsNeeded = Math.ceil(Math.log2(steps))
+    const bitsNeeded = Math.max(1, Math.ceil(Math.log2(steps))) // requires at least 1 bit
     totalBitsNeeded += bitsNeeded
     config[key] = [min, max, step, bitsNeeded]
   })
 
+  const base2HashLength = Math.ceil(totalBitsNeeded / base2ChunkSize) * base2ChunkSize
+  const base62HashLength = (base2HashLength / base2ChunkSize) * base62ChunkSize
+
   validateConfig(config)
 
-  const configVersion = hashObject(config).slice(0, VERSION_LENGTH)
+  const configVersion = hashObject({
+    ...config,
+    __ALGORITHM_VERSION__: ALGO_VERSION
+  }).slice(0, VERSION_LENGTH)
 
   function validateObject (obj) {
     const objKeys = Object.keys(obj)
@@ -84,22 +94,39 @@ export default function createEncoder (config) {
 
   function encodeObject (obj) {
     validateObject(obj)
-    const bits = configKeys.map((key) => {
+    let bits = configKeys.map((key) => {
       const [min, , step, bitsNeeded] = config[key]
       const val = obj[key]
       // NOTE: rounding here because of floating point errors?
       const valInBase2 = toBase2(Math.round((val - min) / step))
       return leftPad(valInBase2, bitsNeeded, '0')
     }).join('')
-    return configVersion + toBase62(fromBase2(bits))
+    bits = leftPad(bits, base2HashLength, '0')
+    let hash = ''
+    while (bits.length) {
+      let chunk = toBase62(fromBase2(bits.slice(0, base2ChunkSize)))
+      bits = bits.slice(base2ChunkSize)
+      hash += leftPad(chunk, base62ChunkSize, '0')
+    }
+    while (hash[0] === '0') {
+      hash = hash.slice(1)
+    }
+    return configVersion + hash
   }
 
   function decodeObject (hash) {
     const obj = {}
     validateHash(hash)
     hash = hash.slice(VERSION_LENGTH)
-    let bits = toBase2(fromBase62(hash))
-    bits = leftPad(bits, totalBitsNeeded, '0')
+    hash = leftPad(hash, base62HashLength, '0')
+    let bits = ''
+    while (hash.length) {
+      let chunk = toBase2(fromBase62(hash.slice(0, base62ChunkSize)))
+      hash = hash.slice(base62ChunkSize)
+      bits += leftPad(chunk, base2ChunkSize, '0')
+    }
+    const extraBits = bits.length - totalBitsNeeded
+    bits = extraBits ? bits.slice(extraBits) : leftPad(bits, totalBitsNeeded, '0')
     configKeys.forEach((key) => {
       const [min, , step, bitsNeeded] = config[key]
       const bit = bits.slice(0, bitsNeeded)
