@@ -96,3 +96,46 @@ test('encoder should decode to the same object that was encoded', (t) => {
   t.deepEqual(testObj, decoded)
   t.end()
 })
+
+test('multitest: encoder should encode/decode to the same object', (t) => {
+  let numTests = 1000
+  while (numTests-- > 0) {
+    const config = randomConfig()
+    const testObj = randomObject(config)
+    const { encodeObject, decodeObject } = createEncoder(config)
+    const encoded = encodeObject(testObj)
+    const decoded = decodeObject(encoded)
+    t.deepEqual(testObj, decoded)
+  }
+  t.end()
+})
+
+function randomObject (config) {
+  const obj = {}
+  Object.keys(config).forEach(key => {
+    const [min, max, step = 1] = config[key]
+    let val = Math.random() * (max - min) | 0
+    val -= val % step
+    val += min
+    obj[key] = val
+  })
+  return obj
+}
+
+function randomConfig () {
+  let alpha = 'abcdefghijklmnopqrstuvwxyz'
+  let numFields = (Math.random() * 10 | 0) + 1
+  const config = {}
+  while (numFields--) {
+    const fieldName = alpha[Math.random() * alpha.length | 0]
+    let min = Math.random() * 10000 | 0
+    min *= Math.random() < 0.5 ? -1 : 1
+    const step = (Math.random() < 0.5 ? Math.random() * 1000 | 0 : 0) + 1
+    const max = min + (step * (Math.random() * 1000 | 0))
+    config[fieldName] = [min, max]
+    if (step !== 1 || Math.random() < 0.5) {
+      config[fieldName].push(step)
+    }
+  }
+  return config
+}
